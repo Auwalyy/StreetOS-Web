@@ -13,7 +13,7 @@ const protect = async (req, res, next) => {
     req.user = await User.findById(decoded.id).select('-password');
     if (!req.user) return errorResponse(res, 'User not found', 401);
     if (!req.user.isActive) return errorResponse(res, 'Account deactivated', 401);
-    next();
+    
   } catch {
     return errorResponse(res, 'Invalid token', 401);
   }
@@ -23,7 +23,7 @@ const authorize = (...roles) => (req, res, next) => {
   if (!roles.includes(req.user.role)) {
     return errorResponse(res, 'Not authorized for this action', 403);
   }
-  next();
+
 };
 
 const optionalAuth = async (req, res, next) => {
@@ -37,7 +37,7 @@ const optionalAuth = async (req, res, next) => {
       req.user = await User.findById(decoded.id).select('-password');
     } catch {}
   }
-  next();
+ 
 };
 
 module.exports = { protect, authorize, optionalAuth };

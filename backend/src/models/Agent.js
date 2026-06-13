@@ -26,11 +26,10 @@ const agentSchema = new mongoose.Schema({
   }],
 }, { timestamps: true });
 
-agentSchema.pre('save', async function (next) {
+agentSchema.pre('save', function () {
   if (!this.agentCode) {
     this.agentCode = 'AGT' + Date.now().toString().slice(-6);
   }
-  next();
 });
 
 agentSchema.index({ user: 1 });
