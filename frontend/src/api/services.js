@@ -12,6 +12,7 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
   forgotPassword: (d) => api.post('/auth/forgot-password', d),
   resetPassword: (token, d) => api.post(`/auth/reset-password/${token}`, d),
+  verifyEmail: (token) => api.get(`/auth/verify-email/${token}`),
 }
 
 // BUSINESSES
@@ -94,14 +95,12 @@ export const employeeApi = {
   recordSalary: (bid, id, d) => api.post(`${b(bid)}/employees/${id}/salary`, d),
 }
 
-// SAVINGS
+// SAVINGS & GOALS
 export const savingsApi = {
   create: (bid, d) => api.post(`${b(bid)}/savings`, d),
   getAll: (bid) => api.get(`${b(bid)}/savings`),
   addTransaction: (bid, id, d) => api.post(`${b(bid)}/savings/${id}/transaction`, d),
 }
-
-// GOALS
 export const goalApi = {
   create: (bid, d) => api.post(`${b(bid)}/goals`, d),
   getAll: (bid) => api.get(`${b(bid)}/goals`),
@@ -139,6 +138,63 @@ export const groupApi = {
   get: (id) => api.get(`/groups/${id}`),
   join: (id) => api.post(`/groups/${id}/join`),
   recordContribution: (id, d) => api.post(`/groups/${id}/contribution`, d),
+}
+
+// AGENTS
+export const agentApi = {
+  register: (d) => api.post('/agents/register', d),
+  getProfile: () => api.get('/agents/me'),
+  updateProfile: (d) => api.put('/agents/me', d),
+  onboardMerchant: (d) => api.post('/agents/onboard', d),
+  getMerchants: () => api.get('/agents/merchants'),
+  getCommissions: () => api.get('/agents/commissions'),
+  submitKYC: (d) => api.post('/agents/kyc', d),
+  getAll: (params) => api.get('/agents', { params }),
+}
+
+// ASSOCIATIONS
+export const associationApi = {
+  create: (d) => api.post('/associations', d),
+  getAll: (params) => api.get('/associations', { params }),
+  getMine: () => api.get('/associations/mine'),
+  get: (id) => api.get(`/associations/${id}`),
+  update: (id, d) => api.put(`/associations/${id}`, d),
+  join: (id, d) => api.post(`/associations/${id}/join`, d),
+  addAnnouncement: (id, d) => api.post(`/associations/${id}/announcements`, d),
+  recordFee: (id, d) => api.post(`/associations/${id}/fees`, d),
+}
+
+// LOANS (SME Credit Marketplace)
+export const loanApi = {
+  getLenders: (bid, params) => api.get(`${b(bid)}/loans/lenders`, { params }),
+  apply: (bid, d) => api.post(`${b(bid)}/loans/apply`, d),
+  getApplications: (bid) => api.get(`${b(bid)}/loans/applications`),
+  getApplication: (bid, id) => api.get(`${b(bid)}/loans/applications/${id}`),
+  updateStatus: (bid, id, d) => api.put(`${b(bid)}/loans/applications/${id}/status`, d),
+  getAllAdmin: (params) => api.get('/loans/admin', { params }),
+}
+
+// MARKET INTELLIGENCE
+export const marketApi = {
+  getPrices: (params) => api.get('/market/prices', { params }),
+  getTrends: () => api.get('/market/trends'),
+  getIntelligence: (bid) => api.get(`${b(bid)}/market/intelligence`),
+  getPriceRecommendation: (bid, params) => api.get(`${b(bid)}/market/price-recommendation`, { params }),
+}
+
+// LEARNING CENTER
+export const learningApi = {
+  getAll: (params) => api.get('/learning', { params }),
+  get: (id) => api.get(`/learning/${id}`),
+  like: (id) => api.post(`/learning/${id}/like`),
+  create: (d) => api.post('/learning', d),
+}
+
+// SECURITY / FRAUD
+export const securityApi = {
+  runFraudDetection: (bid) => api.get(`${b(bid)}/security/fraud`),
+  getVerification: (bid) => api.get(`${b(bid)}/verification`),
+  submitVerification: (bid, d) => api.post(`${b(bid)}/verification`, d),
 }
 
 // ADMIN
