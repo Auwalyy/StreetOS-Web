@@ -48,7 +48,7 @@ exports.getAIAdvice = async (req, res) => {
 };
 
 exports.parseVoiceTransaction = async (req, res) => {
-  const { transcript } = req.body;
+  const { transcript, language = 'en' } = req.body;
 
   // Rule-based NLP parser for common patterns
   const text = transcript.toLowerCase();
@@ -63,24 +63,37 @@ exports.parseVoiceTransaction = async (req, res) => {
   }
 
   // Extract quantity and product
-  const qtyMatch = text.match(/(\d+)\s+(bags?|pieces?|units?|bottles?|plates?|cups?|kg|litres?|cartons?)\s+(?:of\s+)?([a-z\s]+?)(?:\s+for|\s+at|$)/);
+  const qtyMatch = text.match(/(\d+)\s+(bags?|pieces?|units?|bottles?|plates?|cups?|kg|litres?|cartons?|jars?|packs?)\s+(?:of\s+)?([a-z\s]+?)(?:\s+for|\s+at|$)/i);
   if (qtyMatch) {
     parsed.products = [{ name: qtyMatch[3].trim(), quantity: parseInt(qtyMatch[1]), unitPrice: parsed.amount / parseInt(qtyMatch[1]), total: parsed.amount }];
   }
 
-  // Determine type
-  if (text.includes('spent') || text.includes('bought') || text.includes('paid for') || text.includes('expense')) {
-    parsed.type = 'expense';
-  } else if (text.includes('owe') || text.includes('credit') || text.includes('will pay')) {
-    parsed.type = 'sale';
-    parsed.paymentStatus = 'pending';
+  // Determine type based on language
+  if (language === 'ha' || language === 'ha-NG') {
+    // Hausa keywords
+    if (text.match(/\b(da\s+kudin|jiyya|kasua|sayar|gadawa|ba\s+kasuwa)\b/)) {
+      parsed.type = text.match(/\b(jiyya|kasua|ba\s+kasuwa)\b/) ? 'expense' : 'sale';
+    } else if (text.match(/\b(biya|ba\s+da\s+biya)\b/)) {
+      parsed.type = 'sale';
+      parsed.paymentStatus = 'pending';
+    }
+    // Extract customer name Hausa
+    const customerMatchHa = text.match(/(?:wa|ga)\s+([a-z]+)/);
+    if (customerMatchHa) parsed.customerName = customerMatchHa[1];
+  } else {
+    // English keywords
+    if (text.includes('spent') || text.includes('bought') || text.includes('paid for') || text.includes('expense')) {
+      parsed.type = 'expense';
+    } else if (text.includes('owe') || text.includes('credit') || text.includes('will pay')) {
+      parsed.type = 'sale';
+      parsed.paymentStatus = 'pending';
+    }
+    // Extract customer name English
+    const customerMatch = text.match(/(?:sold to|customer|for)\s+([a-z]+)/);
+    if (customerMatch) parsed.customerName = customerMatch[1];
   }
 
-  // Extract customer name
-  const customerMatch = text.match(/(?:sold to|customer|for)\s+([a-z]+)/);
-  if (customerMatch) parsed.customerName = customerMatch[1];
-
-  return successResponse(res, { transcript, parsed });
+  return successResponse(res, { transcript, parsed, language });
 };
 
 exports.getLoanReadiness = async (req, res) => {
