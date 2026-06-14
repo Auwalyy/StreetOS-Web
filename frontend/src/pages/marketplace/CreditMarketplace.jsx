@@ -49,15 +49,6 @@ function ApplyModal({ lender, businessId, onClose }) {
   )
 }
 
-function Textarea({ label, ...props }) {
-  return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
-      <textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none" rows={3} {...props} />
-    </div>
-  )
-}
-
 export default function CreditMarketplace() {
   const { currentBusiness } = useAuthStore()
   const [tab, setTab] = useState('marketplace')
