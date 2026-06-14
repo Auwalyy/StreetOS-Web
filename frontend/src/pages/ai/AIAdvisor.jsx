@@ -5,6 +5,110 @@ import { aiApi, transactionApi, analyticsApi } from '../../api/services'
 import { Card, ScoreRing, Badge, Button, Spinner } from '../../components/ui'
 import toast from 'react-hot-toast'
 
+const SUGGESTED = [
+  'How many bags of rice do I have?',
+  'What is my best selling product?',
+  'Which products should I restock?',
+  'Which product generates the highest profit?',
+  'What are my sales today?',
+  'What is my total inventory value?',
+  'Which products are out of stock?',
+  'Show me dead stock',
+]
+
+function ChatTab({ businessId }) {
+  const [messages, setMessages] = useState([
+    { role: 'ai', text: 'Hi! I\'m your StreetOS AI Assistant. Ask me anything about your inventory, sales, or products. 🚀' }
+  ])
+  const [input, setInput] = useState('')
+  const bottomRef = useRef(null)
+
+  const { mutate: ask, isPending } = useMutation({
+    mutationFn: (question) => aiApi.chat(businessId, { question }).then(r => r.data.data),
+    onSuccess: (data) => {
+      setMessages(prev => [...prev, { role: 'ai', text: data.answer, type: data.type }])
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    },
+    onError: () => setMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I had trouble answering that. Try again.' }]),
+  })
+
+  const send = (q) => {
+    const question = q || input.trim()
+    if (!question) return
+    setMessages(prev => [...prev, { role: 'user', text: question }])
+    setInput('')
+    ask(question)
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  const formatMessage = (text) => text.split('\n').map((line, i) => {
+    const bold = line.replace(/\*\*(.+?)\*\*/g, (_, m) => `<strong>${m}</strong>`)
+    return <p key={i} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: bold }} />
+  })
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-gray-50 rounded-xl">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {m.role === 'ai' && (
+              <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm mr-2 mt-1 shrink-0">🤖</div>
+            )}
+            <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm space-y-1 ${
+              m.role === 'user'
+                ? 'bg-orange-500 text-white rounded-br-none'
+                : 'bg-white border border-gray-100 text-gray-800 rounded-bl-none shadow-sm'
+            }`}>
+              {formatMessage(m.text)}
+            </div>
+          </div>
+        ))}
+        {isPending && (
+          <div className="flex justify-start">
+            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm mr-2 shrink-0">🤖</div>
+            <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
+              <div className="flex gap-1">
+                {[0,1,2].map(i => <div key={i} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />)}
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Suggested questions */}
+      {messages.length <= 1 && (
+        <div className="py-3">
+          <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
+          <div className="flex flex-wrap gap-2">
+            {SUGGESTED.map(s => (
+              <button key={s} onClick={() => send(s)}
+                className="text-xs px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full hover:bg-orange-100 transition-colors">
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex gap-2 pt-3">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && send()}
+          placeholder="Ask about your inventory, sales, profits..."
+          className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+        <Button onClick={() => send()} disabled={!input.trim() || isPending} className="px-5">
+          Send
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export default function AIAdvisor() {
   const { currentBusiness } = useAuthStore()
 
@@ -336,6 +440,7 @@ export default function AIAdvisor() {
       <div className="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
         {[
           ['advisor', '💡 Advisor'],
+          ['chat', '💬 Chat'],
           ['voice', '🎤 Voice'],
           ['loan', '🏦 Loan'],
           ['passport', '📋 Passport'],
@@ -344,7 +449,7 @@ export default function AIAdvisor() {
             key={k}
             onClick={() => setTab(k)}
             className={`px-4 py-2 rounded-lg text-sm ${
-              tab === k ? 'bg-white shadow text-orange-600' : 'text-gray-600'
+              tab === k ? 'bg-white shadow text-orange-600 font-semibold' : 'text-gray-600'
             }`}
           >
             {l}
@@ -354,6 +459,7 @@ export default function AIAdvisor() {
 
       {/* Content */}
       {tab === 'advisor' && renderAdvisor()}
+      {tab === 'chat' && <ChatTab businessId={currentBusiness._id} />}
       {tab === 'voice' && renderVoice()}
       {tab === 'loan' && renderLoan()}
 

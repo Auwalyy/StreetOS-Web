@@ -153,6 +153,7 @@ export const aiApi = {
   parseVoice: (bid, d) => api.post(`${b(bid)}/ai/voice-parse`, d),
   getLoanReadiness: (bid) => api.get(`${b(bid)}/ai/loan-readiness`),
   getPassport: (bid) => api.get(`${b(bid)}/ai/passport`),
+  chat: (bid, d) => api.post(`${b(bid)}/ai/chat`, d),
 }
 
 // NOTIFICATIONS

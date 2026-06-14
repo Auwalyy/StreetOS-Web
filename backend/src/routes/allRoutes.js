@@ -51,12 +51,13 @@ resourceRouter.put('/goals/:id', updateGoal);
 
 // AI Routes
 const aiRouter = express.Router({ mergeParams: true });
-const { getAIAdvice, parseVoiceTransaction, getLoanReadiness, getBusinessPassport } = require('../controllers/aiController');
+const { getAIAdvice, parseVoiceTransaction, getLoanReadiness, getBusinessPassport, inventoryChat } = require('../controllers/aiController');
 aiRouter.use(protect, requireBusiness);
 aiRouter.get('/advice', getAIAdvice);
 aiRouter.post('/voice-parse', parseVoiceTransaction);
 aiRouter.get('/loan-readiness', getLoanReadiness);
 aiRouter.get('/passport', getBusinessPassport);
+aiRouter.post('/chat', inventoryChat);
 
 // Notification Routes
 const notifRouter = express.Router();
