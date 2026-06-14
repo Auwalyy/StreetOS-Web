@@ -30,13 +30,14 @@ import CommunityScreen from '../screens/more/CommunityScreen';
 import AdasheScreen from '../screens/more/AdasheScreen';
 import NotificationsScreen from '../screens/more/NotificationsScreen';
 import MarketScreen from '../screens/more/MarketScreen';
+import POSScreen from '../screens/pos/POSScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
   Dashboard: '🏠',
-  Transactions: '💳',
+  POS: '⚡',
   Inventory: '📦',
   Debts: '📒',
   Analytics: '📊',
@@ -79,7 +80,7 @@ function MainTabs() {
   return (
     <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Transactions" component={TransactionsScreen} />
+      <Tab.Screen name="POS" component={POSScreen} />
       <Tab.Screen name="Inventory" component={InventoryScreen} />
       <Tab.Screen name="Debts" component={DebtsScreen} />
       <Tab.Screen name="Analytics" component={AnalyticsScreen} />
@@ -106,6 +107,7 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="AddTransaction" component={AddTransactionScreen} options={{ presentation: 'modal' }} />
+            <Stack.Screen name="POS" component={POSScreen} />
             <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="Employees" component={EmployeesScreen} />

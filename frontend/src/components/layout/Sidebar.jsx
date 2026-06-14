@@ -5,8 +5,11 @@ import toast from 'react-hot-toast'
 
 const navItems = [
   { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
-  { to: '/transactions', icon: '💳', label: 'Transactions' },
+  { to: '/pos', icon: '⚡', label: 'POS Checkout' },
+  { to: '/sales', icon: '🛒', label: 'Sales' },
   { to: '/inventory', icon: '📦', label: 'Inventory' },
+  { to: '/purchase-orders', icon: '📋', label: 'Purchase Orders' },
+  { to: '/transactions', icon: '💳', label: 'Transactions' },
   { to: '/customers', icon: '👥', label: 'Customers' },
   { to: '/debts', icon: '📒', label: 'Debt Book' },
   { to: '/analytics', icon: '📊', label: 'Analytics' },

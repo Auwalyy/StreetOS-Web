@@ -27,6 +27,10 @@ import LearningCenter from './pages/learning/LearningCenter'
 import Documents from './pages/documents/Documents'
 import Notifications from './pages/notifications/Notifications'
 import Profile from './pages/profile/Profile'
+import Checkout from './pages/pos/Checkout'
+import Invoice from './pages/pos/Invoice'
+import Sales from './pages/sales/Sales'
+import PurchaseOrders from './pages/purchaseorders/PurchaseOrders'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +54,10 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/pos" element={<Checkout />} />
+            <Route path="/invoice/:id" element={<Invoice />} />
+            <Route path="/sales" element={<Sales />} />
+            <Route path="/purchase-orders" element={<PurchaseOrders />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/debts" element={<Debts />} />
             <Route path="/analytics" element={<Analytics />} />

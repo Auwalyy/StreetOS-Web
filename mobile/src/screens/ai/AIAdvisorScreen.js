@@ -100,6 +100,7 @@ export default function AIAdvisorScreen() {
     }
   };
 
+  const { mutate: parseVoice, isPending: parsing } = useMutation({
     mutationFn: () => aiApi.parseVoice(currentBusiness._id, { transcript, language: 'en-NG' }),
     onSuccess: ({ data }) => setParsed(data.data.parsed),
     onError: () => Alert.alert('Error', 'Failed to parse voice input'),
