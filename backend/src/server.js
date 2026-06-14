@@ -32,7 +32,7 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: process.env.CLIENT_URL || '*', methods: ['GET', 'POST'] },
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
 });
 
 io.on('connection', (socket) => {
@@ -44,7 +44,12 @@ app.set('io', io);
 
 // Security
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || '*', credentials: true }));
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'https://street-os-web.vercel.app',
+  'http://localhost:5173',
+].filter(Boolean)
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
