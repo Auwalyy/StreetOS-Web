@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
-import { aiApi, transactionApi } from '../../api/services'
+import { aiApi, transactionApi, analyticsApi } from '../../api/services'
 import { Card, ScoreRing, Badge, Button, Spinner } from '../../components/ui'
 import toast from 'react-hot-toast'
 
@@ -375,10 +375,7 @@ function PassportTab({ businessId, business }) {
 
   const { data: health } = useQuery({
     queryKey: ['health-score', businessId],
-    queryFn: () =>
-      fetch(`/api/businesses/${businessId}/analytics/health-score`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('streetos-auth') ? JSON.parse(localStorage.getItem('streetos-auth'))?.state?.token : ''}` },
-      }).then(r => r.json()).then(r => r.data),
+    queryFn: () => analyticsApi.getHealthScore(businessId).then(r => r.data.data),
   })
 
   const handlePrint = () => window.print()
