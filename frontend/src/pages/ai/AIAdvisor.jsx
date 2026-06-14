@@ -357,12 +357,144 @@ export default function AIAdvisor() {
       {tab === 'voice' && renderVoice()}
       {tab === 'loan' && renderLoan()}
 
-      {tab === 'passport' && (
-        <Card className="max-w-2xl">
-          <h3 className="font-semibold mb-2">📋 Business Passport</h3>
-          <p className="text-sm text-gray-400">
-            Coming soon — verified business identity document
-          </p>
+      {tab === 'passport' && <PassportTab businessId={currentBusiness._id} business={currentBusiness} />}
+    </div>
+  )
+}
+
+function PassportTab({ businessId, business }) {
+  const { data: passport, isLoading } = useQuery({
+    queryKey: ['passport', businessId],
+    queryFn: () => aiApi.getPassport(businessId).then(r => r.data.data),
+  })
+
+  const { data: loan } = useQuery({
+    queryKey: ['loan-readiness', businessId],
+    queryFn: () => aiApi.getLoanReadiness(businessId).then(r => r.data.data),
+  })
+
+  const { data: health } = useQuery({
+    queryKey: ['health-score', businessId],
+    queryFn: () =>
+      fetch(`/api/businesses/${businessId}/analytics/health-score`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('streetos-auth') ? JSON.parse(localStorage.getItem('streetos-auth'))?.state?.token : ''}` },
+      }).then(r => r.json()).then(r => r.data),
+  })
+
+  const handlePrint = () => window.print()
+
+  if (isLoading) return <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const revenueData = passport?.monthlyRevenue || []
+  const totalRevenue = revenueData.reduce((a, b) => a + b.total, 0)
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">Your verified digital business identity document</p>
+        <Button onClick={handlePrint} variant="secondary">🖨️ Print Passport</Button>
+      </div>
+
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-2xl p-8 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8 pb-6 border-b border-white/20">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-2xl font-bold">
+              {business?.name?.[0]}
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">{business?.name}</h2>
+              <p className="text-white/70 capitalize">{business?.category?.replace('_', ' ')}</p>
+              <p className="text-white/50 text-sm">📍 {business?.address?.city}, {business?.address?.state}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="bg-orange-500 px-4 py-2 rounded-xl">
+              <p className="text-xs opacity-80">BUSINESS PASSPORT</p>
+              <p className="font-bold text-sm">StreetOS AI</p>
+            </div>
+            <p className="text-white/40 text-xs mt-2">{new Date().toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          </div>
+        </div>
+
+        {/* Score Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: 'Health Score', value: health?.score ?? '—', suffix: '/100', color: 'text-green-400' },
+            { label: 'Credit Score', value: loan?.creditScore ?? '—', suffix: '/850', color: 'text-blue-400' },
+            { label: 'Loan Readiness', value: loan?.loanReadinessScore ?? '—', suffix: '%', color: 'text-orange-400' },
+            { label: 'Risk Level', value: loan?.riskLevel ?? '—', suffix: '', color: loan?.riskLevel === 'low' ? 'text-green-400' : loan?.riskLevel === 'medium' ? 'text-yellow-400' : 'text-red-400' },
+          ].map((s, i) => (
+            <div key={i} className="bg-white/10 rounded-xl p-4 text-center">
+              <p className={`text-2xl font-bold ${s.color} capitalize`}>{s.value}{s.suffix}</p>
+              <p className="text-white/60 text-xs mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Revenue Summary */}
+        <div className="bg-white/10 rounded-xl p-5 mb-6">
+          <p className="text-white/60 text-xs uppercase tracking-wider mb-3">Revenue History (12 months)</p>
+          <div className="flex items-end gap-1 h-16">
+            {revenueData.length > 0 ? (
+              revenueData.map((d, i) => {
+                const max = Math.max(...revenueData.map(x => x.total))
+                const height = max > 0 ? Math.max((d.total / max) * 100, 5) : 5
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full bg-orange-400 rounded-sm" style={{ height: `${height}%` }} />
+                    <p className="text-white/40 text-[8px]">{months[(d._id?.month || 1) - 1]}</p>
+                  </div>
+                )
+              })
+            ) : (
+              <p className="text-white/40 text-sm">No revenue data yet</p>
+            )}
+          </div>
+          <p className="text-white/80 font-bold mt-2">Total: ₦{totalRevenue.toLocaleString()}</p>
+        </div>
+
+        {/* Business Info */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { label: 'Owner', value: `${passport?.business?.owner?.firstName || ''} ${passport?.business?.owner?.lastName || ''}`.trim() || '—' },
+            { label: 'Phone', value: passport?.business?.owner?.phone || business?.phone || '—' },
+            { label: 'Max Loan Estimate', value: loan?.maxLoanEstimate ? `₦${loan.maxLoanEstimate.toLocaleString()}` : '—' },
+            { label: 'Verified', value: business?.isVerified ? '✅ Yes' : '⚠️ Pending' },
+          ].map((item, i) => (
+            <div key={i}>
+              <p className="text-white/40 text-xs">{item.label}</p>
+              <p className="text-white/90 font-medium text-sm">{item.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-6 pt-4 border-t border-white/20 flex items-center justify-between">
+          <p className="text-white/40 text-xs">Generated by StreetOS AI · The Financial OS for Africa's Informal Economy</p>
+          <p className="text-white/40 text-xs">{new Date().getFullYear()}</p>
+        </div>
+      </div>
+
+      {/* Loan Factors */}
+      {loan?.factors && (
+        <Card>
+          <h3 className="font-semibold text-gray-900 mb-4">📊 Credit Factors</h3>
+          <div className="space-y-3">
+            {loan.factors.map((f, i) => (
+              <div key={i} className={`flex items-start gap-3 p-3 rounded-xl ${
+                f.status === 'good' || f.status === 'excellent' ? 'bg-green-50' : f.status === 'fair' ? 'bg-yellow-50' : 'bg-red-50'
+              }`}>
+                <span className="text-lg">{f.status === 'good' || f.status === 'excellent' ? '✅' : '⚠️'}</span>
+                <div>
+                  <p className="font-medium text-gray-800 text-sm">{f.factor}</p>
+                  <p className="text-gray-500 text-xs">{f.note}</p>
+                </div>
+                <Badge color={f.status === 'good' || f.status === 'excellent' ? 'green' : f.status === 'fair' ? 'yellow' : 'red'} className="ml-auto">{f.status}</Badge>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
     </div>
