@@ -28,6 +28,12 @@ const {
 
 connectDB();
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'https://street-os-web.vercel.app',
+  'http://localhost:5173',
+].filter(Boolean)
+
 const app = express();
 const server = http.createServer(app);
 
@@ -44,11 +50,6 @@ app.set('io', io);
 
 // Security
 app.use(helmet());
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'https://street-os-web.vercel.app',
-  'http://localhost:5173',
-].filter(Boolean)
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
