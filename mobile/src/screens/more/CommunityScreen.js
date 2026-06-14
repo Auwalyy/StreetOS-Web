@@ -2,30 +2,45 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { useAuthStore } from '../../store/authStore';
 import { communityApi } from '../../api/services';
 import { Avatar, Badge, Card, Button, Spinner, EmptyState, ScreenHeader, BottomModal, Input } from '../../components/UI';
 import { colors, typography, spacing, radius } from '../../theme';
 
 const TYPE_COLORS = { discussion: 'blue', question: 'purple', success_story: 'green', tip: 'yellow', announcement: 'orange' };
+const FILTERS = [['', 'All'], ['discussion', '💬'], ['question', '❓'], ['success_story', '🏆'], ['tip', '💡']];
+const POST_TYPES = [
+  { value: 'discussion', label: '💬 Discussion' },
+  { value: 'question', label: '❓ Question' },
+  { value: 'success_story', label: '🏆 Success Story' },
+  { value: 'tip', label: '💡 Tip' },
+];
 
 function PostModal({ visible, onClose }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({ title: '', content: '', type: 'discussion' });
+
   const { mutate, isPending } = useMutation({
     mutationFn: () => communityApi.createPost(form),
-    onSuccess: () => { qc.invalidateQueries(['community-posts']); onClose(); setForm({ title: '', content: '', type: 'discussion' }); },
+    onSuccess: () => {
+      qc.invalidateQueries(['community-posts']);
+      onClose();
+      setForm({ title: '', content: '', type: 'discussion' });
+    },
     onError: (e) => Alert.alert('Error', e.response?.data?.message || 'Failed'),
   });
-  const TYPES = [{ value: 'discussion', label: '💬 Discussion' }, { value: 'question', label: '❓ Question' }, { value: 'success_story', label: '🏆 Success Story' }, { value: 'tip', label: '💡 Tip' }];
+
   return (
     <BottomModal visible={visible} onClose={onClose} title="Create Post" height="80%">
       <View style={{ gap: 14 }}>
         <View>
           <Text style={styles.label}>Type</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {TYPES.map(t => (
-              <TouchableOpacity key={t.value} onPress={() => setForm(f => ({ ...f, type: t.value }))} style={[styles.typeChip, form.type === t.value && styles.typeChipActive]}>
+            {POST_TYPES.map(t => (
+              <TouchableOpacity
+                key={t.value}
+                onPress={() => setForm(f => ({ ...f, type: t.value }))}
+                style={[styles.typeChip, form.type === t.value && styles.typeChipActive]}
+              >
                 <Text style={[styles.typeChipText, form.type === t.value && { color: colors.white }]}>{t.label}</Text>
               </TouchableOpacity>
             ))}
@@ -34,7 +49,16 @@ function PostModal({ visible, onClose }) {
         <Input label="Title (optional)" value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="What's this about?" />
         <View>
           <Text style={styles.label}>Content *</Text>
-          <TextInput style={styles.contentInput} value={form.content} onChangeText={v => setForm(f => ({ ...f, content: v }))} placeholder="Share your thoughts..." placeholderTextColor={colors.gray400} multiline numberOfLines={5} textAlignVertical="top" />
+          <TextInput
+            style={styles.contentInput}
+            value={form.content}
+            onChangeText={v => setForm(f => ({ ...f, content: v }))}
+            placeholder="Share your thoughts, ask a question..."
+            placeholderTextColor={colors.gray400}
+            multiline
+            numberOfLines={5}
+            textAlignVertical="top"
+          />
         </View>
         <Button title="Post" onPress={() => mutate()} loading={isPending} />
       </View>
@@ -43,7 +67,6 @@ function PostModal({ visible, onClose }) {
 }
 
 export default function CommunityScreen({ navigation }) {
-  const { user } = useAuthStore();
   const qc = useQueryClient();
   const [typeFilter, setTypeFilter] = useState('');
   const [showPost, setShowPost] = useState(false);
@@ -58,12 +81,10 @@ export default function CommunityScreen({ navigation }) {
     onSuccess: () => qc.invalidateQueries(['community-posts']),
   });
 
-  const FILTERS = [['', 'All'], ['discussion', '💬'], ['question', '❓'], ['success_story', '🏆'], ['tip', '💡']];
-
   const renderItem = ({ item: post }) => (
     <Card style={{ marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-        <Avatar name={`${post.author?.firstName} ${post.author?.lastName}`} size="sm" />
+        <Avatar name={`${post.author?.firstName || ''} ${post.author?.lastName || ''}`} size="sm" />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={styles.authorName}>{post.author?.firstName} {post.author?.lastName}</Text>
           <Text style={styles.postDate}>{format(new Date(post.createdAt), 'dd MMM yyyy')}</Text>
@@ -93,7 +114,11 @@ export default function CommunityScreen({ navigation }) {
       <View style={{ paddingHorizontal: spacing.lg, paddingVertical: 10 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {FILTERS.map(([v, l]) => (
-            <TouchableOpacity key={v} onPress={() => setTypeFilter(v)} style={[styles.filterChip, typeFilter === v && styles.filterChipActive]}>
+            <TouchableOpacity
+              key={v}
+              onPress={() => setTypeFilter(v)}
+              style={[styles.filterChip, typeFilter === v && styles.filterChipActive]}
+            >
               <Text style={[styles.filterText, typeFilter === v && { color: colors.white }]}>{l}</Text>
             </TouchableOpacity>
           ))}
@@ -107,11 +132,18 @@ export default function CommunityScreen({ navigation }) {
           renderItem={renderItem}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
-          ListEmptyComponent={<EmptyState icon="💬" title="No Posts Yet" description="Be the first to start a conversation!" action={<Button title="Create Post" onPress={() => setShowPost(true)} />} />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="💬"
+              title="No Posts Yet"
+              description="Be the first to start a conversation!"
+              action={<Button title="Create Post" onPress={() => setShowPost(true)} size="sm" />}
+            />
+          }
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowPost(true)}>
+      <TouchableOpacity style={styles.fab} onPress={() => setShowPost(true)} activeOpacity={0.85}>
         <Text style={{ fontSize: 28, color: colors.white, fontWeight: '300', lineHeight: 32 }}>+</Text>
       </TouchableOpacity>
 

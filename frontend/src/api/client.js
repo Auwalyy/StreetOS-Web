@@ -16,7 +16,7 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config
-    if (error.response?.status === 401 && !original._retry) {
+    if (error.response?.status === 401 && !original._retry && !original.url?.includes('/auth/login') && !original.url?.includes('/auth/register')) {
       original._retry = true
       const { refreshToken, setAuth, logout } = useAuthStore.getState()
       if (refreshToken) {
