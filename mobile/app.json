@@ -11,12 +11,14 @@
       "resizeMode": "contain",
       "backgroundColor": "#f97316"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.streetos.ai"
+      "bundleIdentifier": "com.streetos.ai",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "StreetOS needs microphone access for voice transaction entry.",
+        "NSPhotoLibraryUsageDescription": "StreetOS needs photo access for business logo upload."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,15 +30,19 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow StreetOS to access your microphone for voice transaction entry."
+        }
+      ],
       [
         "expo-image-picker",
         {
@@ -46,10 +52,7 @@
     ],
     "scheme": "streetos",
     "extra": {
-      "apiUrl": "https://streetos-web.onrender.com/api",
-      "eas": {
-        "projectId": "7eb5e018-4a6c-40cc-847b-60aab5084118"
-      }
+      "apiUrl": "https://streetos-web.onrender.com/api"
     }
   }
 }
