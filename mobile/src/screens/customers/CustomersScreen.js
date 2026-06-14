@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
@@ -31,12 +31,21 @@ function CustomerFormModal({ visible, onClose, businessId, customer }) {
   );
 }
 
-export default function CustomersScreen({ navigation }) {
+export default function CustomersScreen({ navigation, route }) {
   const { currentBusiness } = useAuthStore();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editCustomer, setEditCustomer] = useState(null);
+
+  // Gap 4 fix: auto-open add modal when navigated with openAdd param
+  useEffect(() => {
+    if (route?.params?.openAdd) {
+      setEditCustomer(null);
+      setShowModal(true);
+      navigation.setParams({ openAdd: false });
+    }
+  }, [route?.params?.openAdd]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['customers', currentBusiness?._id, search],

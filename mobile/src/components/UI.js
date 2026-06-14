@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, TextInput, ActivityIndicator,
   StyleSheet, Modal, ScrollView, Pressable,
 } from 'react-native';
+import Svg, { Circle, Text as SvgText } from 'react-native-svg';
 import { colors, typography, spacing, radius, shadows } from '../theme';
 
 // ─── BUTTON ───────────────────────────────────────────────────────────────────
@@ -152,15 +153,44 @@ export function Avatar({ name = '', src, size = 'md' }) {
   );
 }
 
-// ─── SCORE RING ───────────────────────────────────────────────────────────────
+// ─── SCORE RING (SVG) ─────────────────────────────────────────────────────────
 export function ScoreRing({ score = 0, size = 100, label }) {
   const color = score >= 70 ? colors.success : score >= 40 ? colors.primary : colors.danger;
+  const strokeWidth = size * 0.09;
+  const radius_svg = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius_svg;
+  const clampedScore = Math.min(Math.max(score, 0), 100);
+  const strokeDashoffset = circumference - (clampedScore / 100) * circumference;
+  const center = size / 2;
   return (
     <View style={{ alignItems: 'center', gap: 4 }}>
-      <View style={[{ width: size, height: size, borderRadius: size / 2, borderWidth: 8, borderColor: colors.gray100, alignItems: 'center', justifyContent: 'center' }]}>
-        <View style={[{ position: 'absolute', width: size, height: size, borderRadius: size / 2, borderWidth: 8, borderColor: color, borderTopColor: 'transparent', transform: [{ rotate: `${(score / 100) * 360 - 90}deg` }] }]} />
-        <Text style={{ fontSize: size * 0.22, fontWeight: '800', color }}>{score}</Text>
-      </View>
+      <Svg width={size} height={size}>
+        {/* Track */}
+        <Circle
+          cx={center} cy={center} r={radius_svg}
+          fill="none" stroke={colors.gray100}
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress */}
+        <Circle
+          cx={center} cy={center} r={radius_svg}
+          fill="none" stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          rotation="-90"
+          origin={`${center}, ${center}`}
+        />
+        {/* Score text */}
+        <SvgText
+          x={center} y={center}
+          textAnchor="middle" dominantBaseline="central"
+          fontSize={size * 0.22} fontWeight="800" fill={color}
+        >
+          {score}
+        </SvgText>
+      </Svg>
       {label && <Text style={{ fontSize: typography.sm, color: colors.textSecondary }}>{label}</Text>}
     </View>
   );

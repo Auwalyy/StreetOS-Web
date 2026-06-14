@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, StatusBar,
+  RefreshControl, StatusBar, Modal, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
-import { analyticsApi, aiApi } from '../../api/services';
-import { Card, StatCard, ScoreRing, Badge, Spinner, SectionHeader, Avatar } from '../../components/UI';
+import { analyticsApi, aiApi, businessApi } from '../../api/services';
+import { Card, StatCard, ScoreRing, Badge, Spinner, SectionHeader } from '../../components/UI';
 import { colors, typography, spacing, radius } from '../../theme';
 
 const QUICK_ACTIONS = [
@@ -15,12 +15,19 @@ const QUICK_ACTIONS = [
   { icon: '💸', label: 'Add Expense', screen: 'AddTransaction', params: { type: 'expense' } },
   { icon: '📒', label: 'Record Debt', screen: 'Debts' },
   { icon: '📦', label: 'Add Product', screen: 'Inventory' },
-  { icon: '👤', label: 'Add Customer', screen: 'Customers' },
+  { icon: '👤', label: 'Add Customer', screen: 'Customers', params: { openAdd: true } },
   { icon: '🤖', label: 'AI Advisor', screen: 'AI' },
 ];
 
 export default function DashboardScreen({ navigation }) {
-  const { user, currentBusiness } = useAuthStore();
+  const { user, currentBusiness, setCurrentBusiness } = useAuthStore();
+  const [showSwitcher, setShowSwitcher] = useState(false);
+
+  const { data: businesses } = useQuery({
+    queryKey: ['businesses'],
+    queryFn: () => businessApi.getAll().then(r => r.data.data),
+    enabled: showSwitcher,
+  });
 
   const { data: stats, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['analytics-dashboard', currentBusiness?._id],
@@ -51,10 +58,14 @@ export default function DashboardScreen({ navigation }) {
 
       <LinearGradient colors={['#f97316', '#ea580c']} style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
+          {/* Business name — tap to switch */}
+          <TouchableOpacity onPress={() => setShowSwitcher(true)} activeOpacity={0.8}>
             <Text style={styles.greeting}>{greeting}, {user?.firstName} 👋</Text>
-            <Text style={styles.bizName}>{currentBusiness?.name}</Text>
-          </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.bizName}>{currentBusiness?.name}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>⌄</Text>
+            </View>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
             <View style={styles.notifBtn}>
               <Text style={{ fontSize: 20 }}>🔔</Text>
@@ -159,6 +170,44 @@ export default function DashboardScreen({ navigation }) {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* Business Switcher Modal */}
+      <Modal visible={showSwitcher} transparent animationType="fade" onRequestClose={() => setShowSwitcher(false)}>
+        <Pressable style={styles.switcherOverlay} onPress={() => setShowSwitcher(false)}>
+          <Pressable style={styles.switcherSheet}>
+            <View style={styles.switcherHandle} />
+            <Text style={styles.switcherTitle}>Switch Business</Text>
+            {(businesses || []).map(biz => (
+              <TouchableOpacity
+                key={biz._id}
+                style={[styles.switcherItem, currentBusiness?._id === biz._id && styles.switcherItemActive]}
+                onPress={() => { setCurrentBusiness(biz); setShowSwitcher(false); }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.switcherBizIcon}>
+                  <Text style={{ fontSize: 20 }}>🏪</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.switcherBizName}>{biz.name}</Text>
+                  <Text style={styles.switcherBizCat}>{biz.category?.replace('_', ' ')} · {biz.address?.city}</Text>
+                </View>
+                {currentBusiness?._id === biz._id && (
+                  <View style={styles.switcherCheck}>
+                    <Text style={{ color: colors.white, fontSize: 13, fontWeight: '800' }}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.addBizBtn}
+              onPress={() => setShowSwitcher(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addBizText}>+ Create New Business</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -186,4 +235,17 @@ const styles = StyleSheet.create({
   alert: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fffbeb', borderRadius: radius.lg, padding: spacing.lg, marginTop: 12, borderWidth: 1, borderColor: '#fde68a' },
   alertTitle: { fontSize: typography.base, fontWeight: '700', color: '#92400e' },
   alertSub: { fontSize: typography.xs, color: '#a16207', marginTop: 2 },
+  // Business Switcher
+  switcherOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  switcherSheet: { backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.xl, paddingBottom: 40 },
+  switcherHandle: { width: 36, height: 4, backgroundColor: colors.gray200, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  switcherTitle: { fontSize: typography.xl, fontWeight: '800', color: colors.text, marginBottom: 16 },
+  switcherItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4 },
+  switcherItemActive: { backgroundColor: colors.primaryBg, borderRadius: radius.lg, paddingHorizontal: 10 },
+  switcherBizIcon: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: colors.primaryBg, alignItems: 'center', justifyContent: 'center' },
+  switcherBizName: { fontSize: typography.base, fontWeight: '700', color: colors.text },
+  switcherBizCat: { fontSize: typography.xs, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  switcherCheck: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  addBizBtn: { marginTop: 12, paddingVertical: 14, borderRadius: radius.lg, backgroundColor: colors.primaryBg, alignItems: 'center', borderWidth: 1, borderColor: colors.primaryLight },
+  addBizText: { fontSize: typography.base, fontWeight: '700', color: colors.primary },
 });

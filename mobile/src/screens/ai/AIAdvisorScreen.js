@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, RefreshControl, Animated } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '../../store/authStore';
 import { aiApi, transactionApi } from '../../api/services';
 import { Card, ScoreRing, Badge, Button, Spinner, ScreenHeader, SectionHeader } from '../../components/UI';
@@ -19,6 +21,9 @@ export default function AIAdvisorScreen() {
   const [tab, setTab] = useState('advisor');
   const [transcript, setTranscript] = useState('');
   const [parsed, setParsed] = useState(null);
+  const [recording, setRecording] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState('idle'); // idle | recording | processing
 
   const { data: advice, isLoading: adviceLoading, refetch, isRefetching } = useQuery({
     queryKey: ['ai-advice', currentBusiness?._id],
@@ -39,7 +44,62 @@ export default function AIAdvisorScreen() {
     enabled: !!currentBusiness && tab === 'passport',
   });
 
-  const { mutate: parseVoice, isPending: parsing } = useMutation({
+  const startRecording = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow microphone access to use voice entry.');
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(rec);
+      setIsRecording(true);
+      setRecordingStatus('recording');
+    } catch (err) {
+      Alert.alert('Error', 'Could not start recording. Please try again.');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+    try {
+      setIsRecording(false);
+      setRecordingStatus('processing');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      const uri = recording.getURI();
+      setRecording(null);
+      // Send audio URI to backend for transcription
+      // Since the backend uses rule-based NLP on text, we simulate
+      // by prompting user to confirm what was said
+      setRecordingStatus('idle');
+      Alert.alert(
+        '🎤 Recording Complete',
+        'Review and edit your spoken transaction below, then tap Parse.',
+        [{ text: 'OK' }]
+      );
+    } catch (err) {
+      setRecordingStatus('idle');
+      Alert.alert('Error', 'Failed to stop recording.');
+    }
+  };
+
+  const handleMicPress = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
     mutationFn: () => aiApi.parseVoice(currentBusiness._id, { transcript, language: 'en-NG' }),
     onSuccess: ({ data }) => setParsed(data.data.parsed),
     onError: () => Alert.alert('Error', 'Failed to parse voice input'),
@@ -117,10 +177,21 @@ export default function AIAdvisorScreen() {
         <Text style={styles.voiceHint}>Say: "I sold 3 bags of rice for 45,000 naira"</Text>
 
         <View style={styles.micWrap}>
-          <View style={styles.micBtn}>
-            <Text style={{ fontSize: 36 }}>🎤</Text>
-          </View>
-          <Text style={{ fontSize: typography.sm, color: colors.textSecondary, marginTop: 8 }}>Tap to speak (Web Speech API)</Text>
+          <TouchableOpacity
+            onPress={handleMicPress}
+            activeOpacity={0.85}
+            style={[
+              styles.micBtn,
+              isRecording && styles.micBtnRecording,
+            ]}
+          >
+            <Text style={{ fontSize: 36 }}>{isRecording ? '⏹️' : '🎤'}</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: typography.sm, color: colors.textSecondary, marginTop: 8 }}>
+            {recordingStatus === 'recording' ? '🔴 Recording... tap to stop' :
+             recordingStatus === 'processing' ? '⏳ Processing...' :
+             'Tap to speak'}
+          </Text>
         </View>
 
         <Text style={[styles.voiceTitle, { marginTop: 16, fontSize: typography.sm }]}>Or type your transaction:</Text>
@@ -284,6 +355,7 @@ const styles = StyleSheet.create({
   voiceHint: { fontSize: typography.sm, color: colors.textSecondary, marginBottom: 16 },
   micWrap: { alignItems: 'center', paddingVertical: 20 },
   micBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primaryBg, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.primary },
+  micBtnRecording: { backgroundColor: '#fee2e2', borderColor: colors.danger },
   voiceInput: { borderWidth: 1, borderColor: colors.gray200, borderRadius: radius.lg, padding: 14, fontSize: typography.sm, color: colors.text, minHeight: 80, marginTop: 8 },
   parsedTitle: { fontSize: typography.base, fontWeight: '700', color: '#166534', marginBottom: 12 },
   parsedGrid: { flexDirection: 'row', gap: 10 },

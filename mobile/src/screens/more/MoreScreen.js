@@ -1,7 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable, FlatList } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
-import { Avatar, Card } from '../../components/UI';
+import { businessApi } from '../../api/services';
+import { Avatar, Card, Badge } from '../../components/UI';
 import { colors, typography, spacing, radius } from '../../theme';
 
 const MENU_ITEMS = [
@@ -15,8 +17,63 @@ const MENU_ITEMS = [
   { icon: '👤', label: 'Profile', screen: 'Profile', color: '#f0fdf4', desc: 'Account settings' },
 ];
 
+function BusinessSwitcherModal({ visible, onClose }) {
+  const { currentBusiness, setCurrentBusiness } = useAuthStore();
+  const { data: businesses } = useQuery({
+    queryKey: ['businesses'],
+    queryFn: () => businessApi.getAll().then(r => r.data.data),
+    enabled: visible,
+  });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.switcherOverlay} onPress={onClose}>
+        <Pressable style={styles.switcherSheet}>
+          <View style={styles.switcherHandle} />
+          <Text style={styles.switcherTitle}>Switch Business</Text>
+          <FlatList
+            data={businesses || []}
+            keyExtractor={item => item._id}
+            ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.gray100 }} />}
+            renderItem={({ item: biz }) => (
+              <TouchableOpacity
+                style={styles.switcherItem}
+                onPress={() => { setCurrentBusiness(biz); onClose(); }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.switcherBizIcon}>
+                  <Text style={{ fontSize: 20 }}>🏪</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.switcherBizName}>{biz.name}</Text>
+                  <Text style={styles.switcherBizCat}>{biz.category?.replace('_', ' ')} · {biz.address?.city}</Text>
+                </View>
+                {currentBusiness?._id === biz._id && (
+                  <View style={styles.switcherCheck}>
+                    <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+            ListFooterComponent={
+              <TouchableOpacity
+                style={styles.addBizBtn}
+                onPress={() => { onClose(); }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addBizText}>+ Add New Business</Text>
+              </TouchableOpacity>
+            }
+          />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function MoreScreen({ navigation }) {
   const { user, currentBusiness, logout } = useAuthStore();
+  const [showSwitcher, setShowSwitcher] = useState(false);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -38,8 +95,9 @@ export default function MoreScreen({ navigation }) {
               <Text style={{ fontSize: 16 }}>✏️</Text>
             </TouchableOpacity>
           </View>
+          {/* Business switcher row */}
           {currentBusiness && (
-            <View style={styles.bizRow}>
+            <TouchableOpacity style={styles.bizRow} onPress={() => setShowSwitcher(true)} activeOpacity={0.75}>
               <View style={styles.bizIcon}>
                 <Text style={{ fontSize: 18 }}>🏪</Text>
               </View>
@@ -47,7 +105,8 @@ export default function MoreScreen({ navigation }) {
                 <Text style={styles.bizName}>{currentBusiness.name}</Text>
                 <Text style={styles.bizCat}>{currentBusiness.category?.replace('_', ' ')} · {currentBusiness.address?.city}</Text>
               </View>
-            </View>
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '700' }}>Switch ›</Text>
+            </TouchableOpacity>
           )}
         </Card>
 
@@ -82,6 +141,8 @@ export default function MoreScreen({ navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <BusinessSwitcherModal visible={showSwitcher} onClose={() => setShowSwitcher(false)} />
     </View>
   );
 }
@@ -110,4 +171,19 @@ const styles = StyleSheet.create({
   appInfoSub: { fontSize: typography.xs, color: colors.textMuted, marginTop: 4, textAlign: 'center' },
   logoutBtn: { backgroundColor: '#fef2f2', borderRadius: radius.xl, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' },
   logoutText: { fontSize: typography.base, fontWeight: '700', color: colors.danger },
+  // Business Switcher
+  overlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  switcherSheet: { backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.xl, paddingBottom: 40, maxHeight: '70%' },
+  switcherHandle: { width: 36, height: 4, backgroundColor: colors.gray200, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  switcherTitle: { fontSize: typography.xl, fontWeight: '800', color: colors.text, marginBottom: 16 },
+  switcherItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4 },
+  switcherItemActive: { backgroundColor: colors.primaryBg, borderRadius: radius.lg, paddingHorizontal: 10 },
+  switcherBizIcon: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: colors.primaryBg, alignItems: 'center', justifyContent: 'center' },
+  switcherBizName: { fontSize: typography.base, fontWeight: '700', color: colors.text },
+  switcherBizCat: { fontSize: typography.xs, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  switcherCheck: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  addBizBtn: { marginTop: 12, paddingVertical: 14, borderRadius: radius.lg, backgroundColor: colors.primaryBg, alignItems: 'center', borderWidth: 1, borderColor: colors.primaryLight },
+  addBizText: { fontSize: typography.base, fontWeight: '700', color: colors.primary },
+  // Switcher overlay alias
+  switcherOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
 });
