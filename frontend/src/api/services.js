@@ -37,7 +37,7 @@ export const transactionApi = {
   createVoice: (bid, d) => api.post(`${b(bid)}/transactions/voice`, d),
 }
 
-// PRODUCTS
+// PRODUCTS (legacy — kept for backward compat)
 export const productApi = {
   create: (bid, d) => api.post(`${b(bid)}/products`, d),
   getAll: (bid, params) => api.get(`${b(bid)}/products`, { params }),
@@ -46,6 +46,46 @@ export const productApi = {
   delete: (bid, id) => api.delete(`${b(bid)}/products/${id}`),
   adjustStock: (bid, id, d) => api.post(`${b(bid)}/products/${id}/adjust-stock`, d),
   getLowStock: (bid) => api.get(`${b(bid)}/products/low-stock`),
+}
+
+// INVENTORY
+export const inventoryApi = {
+  getProducts: (bid, params) => api.get(`${b(bid)}/inventory`, { params }),
+  createProduct: (bid, d) => api.post(`${b(bid)}/inventory`, d),
+  getProduct: (bid, id) => api.get(`${b(bid)}/inventory/${id}`),
+  updateProduct: (bid, id, d) => api.put(`${b(bid)}/inventory/${id}`, d),
+  deleteProduct: (bid, id) => api.delete(`${b(bid)}/inventory/${id}`),
+  archiveProduct: (bid, id) => api.post(`${b(bid)}/inventory/${id}/archive`),
+  restoreProduct: (bid, id) => api.post(`${b(bid)}/inventory/${id}/restore`),
+  adjustStock: (bid, id, d) => api.post(`${b(bid)}/inventory/${id}/adjust-stock`, d),
+  getLowStock: (bid) => api.get(`${b(bid)}/inventory/low-stock`),
+  getByBarcode: (bid, code) => api.get(`${b(bid)}/inventory/barcode/${code}`),
+  getMovements: (bid, params) => api.get(`${b(bid)}/inventory/movements`, { params }),
+  detectLeakage: (bid) => api.get(`${b(bid)}/inventory/leakage`),
+  getForecast: (bid) => api.get(`${b(bid)}/inventory/forecast`),
+  getDeadStock: (bid, params) => api.get(`${b(bid)}/inventory/dead-stock`, { params }),
+  getPerformance: (bid, params) => api.get(`${b(bid)}/inventory/performance`, { params }),
+  getReport: (bid) => api.get(`${b(bid)}/inventory/report`),
+}
+
+// POS / SALES
+export const salesApi = {
+  createSale: (bid, d) => api.post(`${b(bid)}/sales`, d),
+  getSales: (bid, params) => api.get(`${b(bid)}/sales`, { params }),
+  getSale: (bid, id) => api.get(`${b(bid)}/sales/${id}`),
+  getSummary: (bid, params) => api.get(`${b(bid)}/sales/summary`, { params }),
+  voidSale: (bid, id) => api.post(`${b(bid)}/sales/${id}/void`),
+  parseVoice: (bid, d) => api.post(`${b(bid)}/sales/voice-parse`, d),
+}
+
+// PURCHASE ORDERS
+export const purchaseOrderApi = {
+  create: (bid, d) => api.post(`${b(bid)}/purchase-orders`, d),
+  getAll: (bid, params) => api.get(`${b(bid)}/purchase-orders`, { params }),
+  get: (bid, id) => api.get(`${b(bid)}/purchase-orders/${id}`),
+  update: (bid, id, d) => api.put(`${b(bid)}/purchase-orders/${id}`, d),
+  receive: (bid, id, d) => api.post(`${b(bid)}/purchase-orders/${id}/receive`, d),
+  delete: (bid, id) => api.delete(`${b(bid)}/purchase-orders/${id}`),
 }
 
 // CUSTOMERS

@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#f97316"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.streetos.ai",
@@ -30,7 +32,8 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -52,7 +55,10 @@
     ],
     "scheme": "streetos",
     "extra": {
-      "apiUrl": "https://streetos-web.onrender.com/api"
+      "apiUrl": "https://streetos-web.onrender.com/api",
+      "eas": {
+        "projectId": "7eb5e018-4a6c-40cc-847b-60aab5084118"
+      }
     }
   }
 }

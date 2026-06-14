@@ -3,16 +3,11 @@ import struct, zlib, os
 def make_png(w, h, r, g, b):
     def chunk(name, data):
         c = struct.pack('>I', len(data)) + name + data
-        crc = zlib.crc32(name + data) & 0xffffffff
-        return c + struct.pack('>I', crc)
+        return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
     sig = b'\x89PNG\r\n\x1a\n'
     ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-    raw = b''
-    for y in range(h):
-        raw += b'\x00'
-        for x in range(w):
-            raw += bytes([r, g, b])
-    idat = chunk(b'IDAT', zlib.compress(raw))
+    row = b'\x00' + bytes([r, g, b]) * w
+    idat = chunk(b'IDAT', zlib.compress(row * h))
     iend = chunk(b'IEND', b'')
     return sig + ihdr + idat + iend
 

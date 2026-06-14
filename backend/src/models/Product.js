@@ -4,19 +4,28 @@ const productSchema = new mongoose.Schema({
   business: { type: mongoose.Schema.Types.ObjectId, ref: 'Business', required: true },
   name: { type: String, required: true, trim: true },
   sku: { type: String, trim: true },
+  barcode: String,
+  qrCode: String,
   description: String,
   category: { type: String, trim: true },
+  brand: { type: String, trim: true },
+  supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
   images: [String],
   sellingPrice: { type: Number, required: true, min: 0 },
   costPrice: { type: Number, default: 0, min: 0 },
+  wholesalePrice: { type: Number, default: 0, min: 0 },
+  minimumPrice: { type: Number, default: 0, min: 0 },
   quantity: { type: Number, default: 0, min: 0 },
   unit: { type: String, default: 'piece' },
   lowStockThreshold: { type: Number, default: 5 },
-  supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
-  isActive: { type: Boolean, default: true },
-  barcode: String,
   expiryDate: Date,
   location: String,
+  isActive: { type: Boolean, default: true },
+  isArchived: { type: Boolean, default: false },
+  totalSold: { type: Number, default: 0 },
+  totalRevenue: { type: Number, default: 0 },
+  lastSoldAt: Date,
+  tags: [String],
 }, { timestamps: true });
 
 productSchema.virtual('isLowStock').get(function () {
@@ -28,8 +37,13 @@ productSchema.virtual('profitMargin').get(function () {
   return (((this.sellingPrice - this.costPrice) / this.sellingPrice) * 100).toFixed(2);
 });
 
+productSchema.virtual('profitPerUnit').get(function () {
+  return this.sellingPrice - this.costPrice;
+});
+
 productSchema.index({ business: 1 });
-productSchema.index({ business: 1, name: 'text' });
+productSchema.index({ business: 1, name: 'text', sku: 'text', barcode: 'text', tags: 'text' });
 productSchema.index({ quantity: 1 });
+productSchema.index({ lastSoldAt: -1 });
 
 module.exports = mongoose.model('Product', productSchema);
