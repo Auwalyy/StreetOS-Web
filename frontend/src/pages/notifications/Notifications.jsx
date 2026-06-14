@@ -12,7 +12,7 @@ export default function Notifications() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
-    queryFn: () => notificationApi.getAll().then(r => r.data),
+    queryFn: () => notificationApi.getAll().then(r => r.data.data),
   })
 
   const { mutate: markRead } = useMutation({
@@ -25,8 +25,8 @@ export default function Notifications() {
     onSuccess: () => { qc.invalidateQueries(['notifications']); toast.success('All marked as read') },
   })
 
-  const notifications = data?.data || []
-  const unread = notifications.filter(n => !n.isRead).length
+  const notifications = data?.notifications || []
+  const unread = data?.unread || 0
 
   return (
     <div className="space-y-6">

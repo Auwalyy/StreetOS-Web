@@ -15,7 +15,13 @@ const navItems = [
   { to: '/suppliers', icon: '🚚', label: 'Suppliers' },
   { to: '/ai-advisor', icon: '🤖', label: 'AI Advisor' },
   { to: '/adashe', icon: '🤝', label: 'Adashe/Esusu' },
+  { to: '/associations', icon: '🏛️', label: 'Associations' },
   { to: '/community', icon: '💬', label: 'Community' },
+  { to: '/marketplace', icon: '🏦', label: 'Credit Marketplace' },
+  { to: '/market-intelligence', icon: '📈', label: 'Market Intel' },
+  { to: '/learning', icon: '📚', label: 'Learning Center' },
+  { to: '/documents', icon: '📄', label: 'Documents' },
+  { to: '/agents', icon: '🤝', label: 'Agent Network' },
 ]
 
 const adminItems = [

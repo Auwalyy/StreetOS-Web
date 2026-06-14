@@ -19,6 +19,14 @@ import AIAdvisor from './pages/ai/AIAdvisor'
 import Adashe from './pages/adashe/Adashe'
 import Community from './pages/community/Community'
 import Admin from './pages/admin/Admin'
+import AgentDashboard from './pages/agents/AgentDashboard'
+import Associations from './pages/associations/Associations'
+import CreditMarketplace from './pages/marketplace/CreditMarketplace'
+import MarketIntelligence from './pages/marketplace/MarketIntelligence'
+import LearningCenter from './pages/learning/LearningCenter'
+import Documents from './pages/documents/Documents'
+import Notifications from './pages/notifications/Notifications'
+import Profile from './pages/profile/Profile'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +60,14 @@ export default function App() {
             <Route path="/adashe" element={<Adashe />} />
             <Route path="/community" element={<Community />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/agents" element={<AgentDashboard />} />
+            <Route path="/associations" element={<Associations />} />
+            <Route path="/marketplace" element={<CreditMarketplace />} />
+            <Route path="/market-intelligence" element={<MarketIntelligence />} />
+            <Route path="/learning" element={<LearningCenter />} />
+            <Route path="/documents" element={<Documents />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
