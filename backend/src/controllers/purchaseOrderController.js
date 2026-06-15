@@ -1,111 +1,72 @@
-const PurchaseOrder = require('../models/PurchaseOrder');
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
-const InventoryMovement = require('../models/InventoryMovement');
-const Supplier = require('../models/Supplier');
 const { successResponse, errorResponse, paginatedResponse } = require('../utils/response');
 
+// Inline schema — no separate model needed for MVP
+const PurchaseOrder = require('../models/PurchaseOrder');
+
 exports.createPurchaseOrder = async (req, res) => {
-  const { supplierId, supplierName, items, tax = 0, notes, expectedDate } = req.body;
-  if (!items?.length) return errorResponse(res, 'Order must have at least one item', 400);
-
-  const enrichedItems = items.map(i => ({ ...i, total: i.quantity * i.unitCost }));
-  const subtotal = enrichedItems.reduce((s, i) => s + i.total, 0);
-  const total = subtotal + (tax > 1 ? tax : subtotal * (tax / 100));
-
-  const order = await PurchaseOrder.create({
-    business: req.params.businessId,
-    supplier: supplierId || null,
-    supplierName,
-    items: enrichedItems,
-    subtotal,
-    tax: total - subtotal,
-    total,
-    notes,
-    expectedDate,
-    createdBy: req.user._id,
-  });
-
-  return successResponse(res, order, 'Purchase order created', 201);
+  const po = await PurchaseOrder.create({ ...req.body, business: req.params.businessId, createdBy: req.user._id });
+  return successResponse(res, po, 'Purchase order created', 201);
 };
 
 exports.getPurchaseOrders = async (req, res) => {
-  const { page = 1, limit = 20, status } = req.query;
-  const query = { business: req.params.businessId };
-  if (status) query.status = status;
-
+  const { page = 1, limit = 20 } = req.query;
   const [orders, total] = await Promise.all([
-    PurchaseOrder.find(query).populate('supplier', 'name phone').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)),
-    PurchaseOrder.countDocuments(query),
+    PurchaseOrder.find({ business: req.params.businessId }).populate('supplier', 'name').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)),
+    PurchaseOrder.countDocuments({ business: req.params.businessId }),
   ]);
   return paginatedResponse(res, orders, total, page, limit);
 };
 
 exports.getPurchaseOrder = async (req, res) => {
-  const order = await PurchaseOrder.findOne({ _id: req.params.id, business: req.params.businessId }).populate('supplier', 'name phone email');
-  if (!order) return errorResponse(res, 'Order not found', 404);
-  return successResponse(res, order);
+  const po = await PurchaseOrder.findOne({ _id: req.params.id, business: req.params.businessId }).populate('supplier', 'name phone');
+  if (!po) return errorResponse(res, 'Purchase order not found', 404);
+  return successResponse(res, po);
 };
 
 exports.updatePurchaseOrder = async (req, res) => {
-  const order = await PurchaseOrder.findOneAndUpdate(
-    { _id: req.params.id, business: req.params.businessId },
-    req.body,
-    { new: true }
-  );
-  if (!order) return errorResponse(res, 'Order not found', 404);
-  return successResponse(res, order, 'Order updated');
+  const po = await PurchaseOrder.findOneAndUpdate({ _id: req.params.id, business: req.params.businessId }, req.body, { new: true });
+  if (!po) return errorResponse(res, 'Purchase order not found', 404);
+  return successResponse(res, po, 'Updated');
 };
 
 exports.receivePurchaseOrder = async (req, res) => {
-  const { receivedItems } = req.body; // [{ product, receivedQuantity, unitCost }]
-  const order = await PurchaseOrder.findOne({ _id: req.params.id, business: req.params.businessId });
-  if (!order) return errorResponse(res, 'Order not found', 404);
+  const po = await PurchaseOrder.findOne({ _id: req.params.id, business: req.params.businessId });
+  if (!po) return errorResponse(res, 'Purchase order not found', 404);
+  if (po.status === 'received') return errorResponse(res, 'Already received', 400);
 
-  for (const received of receivedItems) {
-    const item = order.items.find(i => i.product?.toString() === received.product);
-    if (item) item.receivedQuantity = received.receivedQuantity;
-
-    if (received.product && received.receivedQuantity > 0) {
-      const product = await Product.findOne({ _id: received.product, business: req.params.businessId });
-      if (product) {
-        const before = product.quantity;
-        product.quantity += received.receivedQuantity;
-        if (received.unitCost) product.costPrice = received.unitCost;
-        await product.save();
-        await InventoryMovement.create({
-          business: req.params.businessId,
-          product: product._id,
-          type: 'stock_in',
-          quantity: received.receivedQuantity,
-          quantityBefore: before,
-          quantityAfter: product.quantity,
-          reference: order._id.toString(),
-          performedBy: req.user._id,
-          reason: `Purchase Order ${order.orderNumber}`,
-          cost: received.unitCost,
-        });
-      }
+  // Update inventory stock for each item
+  for (const item of po.items) {
+    // Try to find product by name
+    const product = await Product.findOne({
+      business: req.params.businessId,
+      name: { $regex: item.productName, $options: 'i' },
+    });
+    if (product) {
+      const before = product.quantity;
+      product.quantity += item.quantity;
+      product.stockMovements = product.stockMovements || [];
+      product.stockMovements.push({
+        quantity: item.quantity,
+        type: 'stock_in',
+        reason: `Purchase Order — ${po._id}`,
+        quantityBefore: before,
+        quantityAfter: product.quantity,
+        performedBy: req.user._id,
+        createdAt: new Date(),
+      });
+      await product.save();
     }
   }
 
-  const allReceived = order.items.every(i => i.receivedQuantity >= i.quantity);
-  const someReceived = order.items.some(i => i.receivedQuantity > 0);
-  order.status = allReceived ? 'received' : someReceived ? 'partial' : order.status;
-  order.receivedDate = new Date();
-  await order.save();
-
-  // Update supplier total purchases
-  if (order.supplier) {
-    await Supplier.findByIdAndUpdate(order.supplier, { $inc: { totalPurchases: order.total } });
-  }
-
-  return successResponse(res, order, 'Purchase order received');
+  po.status = 'received';
+  po.receivedAt = new Date();
+  await po.save();
+  return successResponse(res, po, 'Stock received and inventory updated');
 };
 
 exports.deletePurchaseOrder = async (req, res) => {
-  const order = await PurchaseOrder.findOne({ _id: req.params.id, business: req.params.businessId });
-  if (!order) return errorResponse(res, 'Order not found', 404);
-  if (order.status === 'received') return errorResponse(res, 'Cannot delete received order', 400);
-  await order.deleteOne();
-  return successResponse(res, null, 'Order deleted');
+  await PurchaseOrder.findOneAndDelete({ _id: req.params.id, business: req.params.businessId, status: 'draft' });
+  return successResponse(res, null, 'Deleted');
 };
