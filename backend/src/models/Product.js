@@ -26,6 +26,16 @@ const productSchema = new mongoose.Schema({
   totalRevenue: { type: Number, default: 0 },
   lastSoldAt: Date,
   tags: [String],
+  stockMovements: [{
+    quantity: Number,
+    type: { type: String, enum: ['stock_in', 'stock_out', 'sale', 'damage', 'adjustment', 'return'], default: 'adjustment' },
+    reason: String,
+    quantityBefore: Number,
+    quantityAfter: Number,
+    performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reference: String,
+    createdAt: { type: Date, default: Date.now },
+  }],
 }, { timestamps: true });
 
 productSchema.virtual('isLowStock').get(function () {

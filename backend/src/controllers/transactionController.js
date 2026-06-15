@@ -5,12 +5,30 @@ const { successResponse, errorResponse, paginatedResponse } = require('../utils/
 exports.createTransaction = async (req, res) => {
   const transaction = await Transaction.create({ ...req.body, business: req.params.businessId, user: req.user._id });
 
-  // Update product stock if sale
+  // Decrement product stock and record movement on sale
   if (transaction.type === 'sale' && transaction.products?.length) {
     for (const item of transaction.products) {
-      if (item.product) {
-        await Product.findByIdAndUpdate(item.product, { $inc: { quantity: -item.quantity } });
-      }
+      if (!item.product) continue;
+      const product = await Product.findById(item.product);
+      if (!product) continue;
+      const before = product.quantity;
+      const after = Math.max(0, before - item.quantity);
+      product.quantity = after;
+      product.totalSold = (product.totalSold || 0) + item.quantity;
+      product.totalRevenue = (product.totalRevenue || 0) + (item.total || 0);
+      product.lastSoldAt = transaction.date || new Date();
+      product.stockMovements = product.stockMovements || [];
+      product.stockMovements.push({
+        quantity: -item.quantity,
+        type: 'sale',
+        reason: `Sale — ${transaction._id}`,
+        quantityBefore: before,
+        quantityAfter: after,
+        performedBy: req.user._id,
+        reference: transaction._id.toString(),
+        createdAt: new Date(),
+      });
+      await product.save();
     }
   }
 

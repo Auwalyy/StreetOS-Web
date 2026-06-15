@@ -1,19 +1,23 @@
 const Product = require('../models/Product');
-const InventoryMovement = require('../models/InventoryMovement');
-const Sale = require('../models/Sale');
+const Transaction = require('../models/Transaction');
+const mongoose = require('mongoose');
 const { successResponse, errorResponse, paginatedResponse } = require('../utils/response');
 
-// ─── Product CRUD ─────────────────────────────────────────────────────────────
+const toId = (id) => mongoose.Types.ObjectId.createFromHexString(id);
 
+// ─── CRUD ──────────────────────────────────────────────────────────────────────
 exports.createProduct = async (req, res) => {
   const product = await Product.create({ ...req.body, business: req.params.businessId });
   return successResponse(res, product, 'Product created', 201);
 };
 
 exports.getProducts = async (req, res) => {
-  const { page = 1, limit = 20, search, category, lowStock, archived = 'false' } = req.query;
-  const query = { business: req.params.businessId, isArchived: archived === 'true' };
-  if (archived === 'false') query.isActive = true;
+  const { page = 1, limit = 50, search, category, lowStock, archived } = req.query;
+  const query = { business: req.params.businessId };
+
+  if (archived === 'true') query.isArchived = true;
+  else query.isArchived = { $ne: true };
+
   if (category) query.category = category;
   if (lowStock === 'true') query.$expr = { $lte: ['$quantity', '$lowStockThreshold'] };
   if (search) {
@@ -22,19 +26,24 @@ exports.getProducts = async (req, res) => {
       { sku: { $regex: search, $options: 'i' } },
       { barcode: { $regex: search, $options: 'i' } },
       { brand: { $regex: search, $options: 'i' } },
-      { category: { $regex: search, $options: 'i' } },
-      { tags: { $in: [new RegExp(search, 'i')] } },
     ];
   }
+
   const [products, total] = await Promise.all([
-    Product.find(query).populate('supplier', 'name').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)),
+    Product.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)),
     Product.countDocuments(query),
   ]);
   return paginatedResponse(res, products, total, page, limit);
 };
 
 exports.getProduct = async (req, res) => {
-  const product = await Product.findOne({ _id: req.params.id, business: req.params.businessId }).populate('supplier', 'name phone');
+  const product = await Product.findOne({ _id: req.params.id, business: req.params.businessId });
+  if (!product) return errorResponse(res, 'Product not found', 404);
+  return successResponse(res, product);
+};
+
+exports.getProductByBarcode = async (req, res) => {
+  const product = await Product.findOne({ barcode: req.params.code, business: req.params.businessId, isArchived: { $ne: true } });
   if (!product) return errorResponse(res, 'Product not found', 404);
   return successResponse(res, product);
 };
@@ -43,21 +52,16 @@ exports.updateProduct = async (req, res) => {
   const product = await Product.findOneAndUpdate(
     { _id: req.params.id, business: req.params.businessId },
     req.body,
-    { new: true }
+    { new: true, runValidators: true }
   );
   if (!product) return errorResponse(res, 'Product not found', 404);
   return successResponse(res, product, 'Product updated');
 };
 
-exports.deleteProduct = async (req, res) => {
-  await Product.findOneAndUpdate({ _id: req.params.id, business: req.params.businessId }, { isActive: false });
-  return successResponse(res, null, 'Product deleted');
-};
-
 exports.archiveProduct = async (req, res) => {
   const product = await Product.findOneAndUpdate(
     { _id: req.params.id, business: req.params.businessId },
-    { isArchived: true, isActive: false },
+    { isArchived: true },
     { new: true }
   );
   if (!product) return errorResponse(res, 'Product not found', 404);
@@ -67,250 +71,236 @@ exports.archiveProduct = async (req, res) => {
 exports.restoreProduct = async (req, res) => {
   const product = await Product.findOneAndUpdate(
     { _id: req.params.id, business: req.params.businessId },
-    { isArchived: false, isActive: true },
+    { isArchived: false },
     { new: true }
   );
   if (!product) return errorResponse(res, 'Product not found', 404);
   return successResponse(res, product, 'Product restored');
 };
 
-exports.getLowStockProducts = async (req, res) => {
-  const products = await Product.find({
-    business: req.params.businessId,
-    isActive: true,
-    isArchived: false,
-    $expr: { $lte: ['$quantity', '$lowStockThreshold'] },
-  });
-  return successResponse(res, products);
-};
-
-// ─── Barcode / QR lookup ──────────────────────────────────────────────────────
-
-exports.getProductByBarcode = async (req, res) => {
-  const product = await Product.findOne({ business: req.params.businessId, barcode: req.params.code, isActive: true });
-  if (!product) return errorResponse(res, 'Product not found', 404);
-  return successResponse(res, product);
-};
-
-// ─── Stock Adjustment ─────────────────────────────────────────────────────────
-
+// ─── STOCK ADJUSTMENT (with movement log) ─────────────────────────────────────
 exports.adjustStock = async (req, res) => {
   const { quantity, reason, type = 'adjustment' } = req.body;
   const product = await Product.findOne({ _id: req.params.id, business: req.params.businessId });
   if (!product) return errorResponse(res, 'Product not found', 404);
 
   const before = product.quantity;
-  product.quantity = Math.max(0, product.quantity + quantity);
-  await product.save();
-
-  await InventoryMovement.create({
-    business: req.params.businessId,
-    product: product._id,
+  product.quantity = Math.max(0, product.quantity + Number(quantity));
+  product.stockMovements = product.stockMovements || [];
+  product.stockMovements.push({
+    quantity: Number(quantity),
     type,
-    quantity,
+    reason: reason || 'Manual adjustment',
     quantityBefore: before,
     quantityAfter: product.quantity,
-    reason,
     performedBy: req.user._id,
+    createdAt: new Date(),
   });
-
+  await product.save();
   return successResponse(res, product, 'Stock adjusted');
 };
 
-// ─── Inventory Movements ─────────────────────────────────────────────────────
-
-exports.getMovements = async (req, res) => {
-  const { page = 1, limit = 30, productId, type, startDate, endDate } = req.query;
-  const query = { business: req.params.businessId };
-  if (productId) query.product = productId;
-  if (type) query.type = type;
-  if (startDate || endDate) {
-    query.createdAt = {};
-    if (startDate) query.createdAt.$gte = new Date(startDate);
-    if (endDate) query.createdAt.$lte = new Date(endDate);
-  }
-  const [movements, total] = await Promise.all([
-    InventoryMovement.find(query)
-      .populate('product', 'name unit')
-      .populate('performedBy', 'name')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit)),
-    InventoryMovement.countDocuments(query),
-  ]);
-  return paginatedResponse(res, movements, total, page, limit);
-};
-
-// ─── AI: Leakage Detection ────────────────────────────────────────────────────
-
-exports.detectLeakage = async (req, res) => {
-  const mongoose = require('mongoose');
-  const businessId = mongoose.Types.ObjectId.createFromHexString(req.params.businessId);
-
-  // For each product: expected = initial + stock_in - sales - damages
-  const pipeline = [
-    { $match: { business: businessId } },
-    {
-      $group: {
-        _id: '$product',
-        stockIn: { $sum: { $cond: [{ $in: ['$type', ['stock_in', 'adjustment']] }, { $cond: [{ $gt: ['$quantity', 0] }, '$quantity', 0] }, 0] } },
-        stockOut: { $sum: { $cond: [{ $in: ['$type', ['sale', 'damage', 'transfer', 'stock_out']] }, { $abs: '$quantity' }, 0] } },
-      }
-    },
-    { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'product' } },
-    { $unwind: '$product' },
-    {
-      $project: {
-        name: '$product.name',
-        expected: { $subtract: ['$stockIn', '$stockOut'] },
-        actual: '$product.quantity',
-        costPrice: '$product.costPrice',
-      }
-    },
-    {
-      $addFields: {
-        difference: { $subtract: ['$expected', '$actual'] },
-      }
-    },
-    { $match: { difference: { $gt: 2 } } },
-    {
-      $project: {
-        name: 1, expected: 1, actual: 1, difference: 1,
-        estimatedLoss: { $multiply: ['$difference', '$costPrice'] },
-        riskLevel: {
-          $switch: {
-            branches: [
-              { case: { $gte: ['$difference', 20] }, then: 'HIGH' },
-              { case: { $gte: ['$difference', 10] }, then: 'MEDIUM' },
-            ],
-            default: 'LOW',
-          }
-        }
-      }
-    },
-  ];
-
-  const leakages = await InventoryMovement.aggregate(pipeline);
-  return successResponse(res, leakages);
-};
-
-// ─── AI: Restock Forecast ─────────────────────────────────────────────────────
-
-exports.getRestockForecast = async (req, res) => {
-  const mongoose = require('mongoose');
-  const businessId = mongoose.Types.ObjectId.createFromHexString(req.params.businessId);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  const salesVelocity = await Sale.aggregate([
-    { $match: { business: businessId, date: { $gte: thirtyDaysAgo } } },
-    { $unwind: '$items' },
-    {
-      $group: {
-        _id: '$items.product',
-        totalSold: { $sum: '$items.quantity' },
-        name: { $first: '$items.name' },
-      }
-    },
-    { $addFields: { dailyVelocity: { $divide: ['$totalSold', 30] } } },
-    { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'product' } },
-    { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        name: 1, totalSold: 1, dailyVelocity: 1,
-        currentStock: '$product.quantity',
-        daysRemaining: {
-          $cond: [
-            { $gt: ['$dailyVelocity', 0] },
-            { $divide: ['$product.quantity', '$dailyVelocity'] },
-            999,
-          ]
-        }
-      }
-    },
-    { $match: { daysRemaining: { $lt: 14 } } },
-    { $sort: { daysRemaining: 1 } },
-  ]);
-
-  return successResponse(res, salesVelocity);
-};
-
-// ─── AI: Dead Stock Detection ─────────────────────────────────────────────────
-
-exports.getDeadStock = async (req, res) => {
-  const { days = 30 } = req.query;
-  const cutoff = new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000);
-
+// ─── LOW STOCK ────────────────────────────────────────────────────────────────
+exports.getLowStockProducts = async (req, res) => {
   const products = await Product.find({
     business: req.params.businessId,
-    isActive: true,
-    isArchived: false,
-    quantity: { $gt: 0 },
-    $or: [{ lastSoldAt: { $lt: cutoff } }, { lastSoldAt: null }],
-  }).select('name category quantity costPrice sellingPrice lastSoldAt');
-
-  const result = products.map(p => ({
-    ...p.toObject(),
-    staleDays: p.lastSoldAt ? Math.floor((Date.now() - p.lastSoldAt) / 86400000) : null,
-    stockValue: p.quantity * p.costPrice,
-    recommendation: p.quantity > 20 ? 'Offer discount bundle' : 'Run promotion',
-  }));
-
-  return successResponse(res, result);
+    isArchived: { $ne: true },
+    $expr: { $lte: ['$quantity', '$lowStockThreshold'] },
+  });
+  return successResponse(res, products);
 };
 
-// ─── Product Performance ──────────────────────────────────────────────────────
+// ─── MOVEMENTS ────────────────────────────────────────────────────────────────
+exports.getMovements = async (req, res) => {
+  const { limit = 50, page = 1 } = req.query;
+  const products = await Product.find({ business: req.params.businessId })
+    .select('name stockMovements unit')
+    .lean();
 
-exports.getProductPerformance = async (req, res) => {
-  const mongoose = require('mongoose');
-  const businessId = mongoose.Types.ObjectId.createFromHexString(req.params.businessId);
-  const { period = 30 } = req.query;
-  const since = new Date(Date.now() - Number(period) * 86400000);
+  // Flatten all movements from all products
+  let allMovements = [];
+  for (const p of products) {
+    for (const m of (p.stockMovements || [])) {
+      allMovements.push({ ...m, product: { _id: p._id, name: p.name, unit: p.unit } });
+    }
+  }
 
-  const performance = await Sale.aggregate([
-    { $match: { business: businessId, date: { $gte: since } } },
-    { $unwind: '$items' },
-    {
-      $group: {
-        _id: '$items.product',
-        name: { $first: '$items.name' },
-        totalSold: { $sum: '$items.quantity' },
-        revenue: { $sum: '$items.total' },
-        profit: { $sum: '$items.profit' },
-      }
-    },
-    { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'p' } },
-    { $unwind: { path: '$p', preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        name: 1, totalSold: 1, revenue: 1, profit: 1,
-        stockRemaining: '$p.quantity',
-        category: '$p.category',
-      }
-    },
-    { $sort: { revenue: -1 } },
+  // Sort by date desc
+  allMovements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const total = allMovements.length;
+  const start = (page - 1) * limit;
+  const paginated = allMovements.slice(start, start + Number(limit));
+
+  return paginatedResponse(res, paginated, total, page, limit);
+};
+
+// ─── LEAKAGE DETECTION ────────────────────────────────────────────────────────
+exports.detectLeakage = async (req, res) => {
+  const businessId = toId(req.params.businessId);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Get all products
+  const products = await Product.find({ business: req.params.businessId, isArchived: { $ne: true } }).lean();
+
+  // Get total sold per product from transactions
+  const soldData = await Transaction.aggregate([
+    { $match: { business: businessId, type: 'sale', date: { $gte: thirtyDaysAgo } } },
+    { $unwind: '$products' },
+    { $group: { _id: '$products.product', totalSold: { $sum: '$products.quantity' } } },
+  ]);
+  const soldMap = {};
+  soldData.forEach(s => { if (s._id) soldMap[s._id.toString()] = s.totalSold; });
+
+  // Get stock-in from movements
+  const leakage = [];
+  for (const p of products) {
+    const stockInTotal = (p.stockMovements || [])
+      .filter(m => m.type === 'stock_in')
+      .reduce((a, b) => a + Math.abs(b.quantity), 0);
+
+    const totalSold = soldMap[p._id.toString()] || 0;
+    // initialStock + stockIn - sold = expected
+    const initialStock = (p.stockMovements?.[0]?.quantityBefore) || 0;
+    const expected = initialStock + stockInTotal - totalSold;
+    const actual = p.quantity;
+    const difference = expected - actual;
+
+    if (difference > 2) {
+      const estimatedLoss = difference * (p.costPrice || p.sellingPrice || 0);
+      leakage.push({
+        _id: p._id,
+        name: p.name,
+        expected: Math.round(expected),
+        actual,
+        difference: Math.round(difference),
+        estimatedLoss,
+        riskLevel: difference > 20 ? 'HIGH' : difference > 5 ? 'MEDIUM' : 'LOW',
+      });
+    }
+  }
+
+  leakage.sort((a, b) => b.estimatedLoss - a.estimatedLoss);
+  return successResponse(res, leakage);
+};
+
+// ─── DEMAND FORECAST ──────────────────────────────────────────────────────────
+exports.getForecast = async (req, res) => {
+  const businessId = toId(req.params.businessId);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Sales velocity per product (last 30 days)
+  const soldData = await Transaction.aggregate([
+    { $match: { business: businessId, type: 'sale', date: { $gte: thirtyDaysAgo } } },
+    { $unwind: '$products' },
+    { $group: { _id: '$products.product', totalSold: { $sum: '$products.quantity' } } },
   ]);
 
-  return successResponse(res, performance);
+  const products = await Product.find({ business: req.params.businessId, isArchived: { $ne: true } }).lean();
+  const productMap = {};
+  products.forEach(p => { productMap[p._id.toString()] = p; });
+
+  const forecast = [];
+  for (const s of soldData) {
+    if (!s._id) continue;
+    const product = productMap[s._id.toString()];
+    if (!product) continue;
+
+    const dailyVelocity = s.totalSold / 30;
+    if (dailyVelocity === 0) continue;
+
+    const daysRemaining = product.quantity / dailyVelocity;
+    if (daysRemaining < 14) {
+      forecast.push({
+        _id: product._id,
+        name: product.name,
+        currentStock: product.quantity,
+        dailyVelocity,
+        daysRemaining,
+        suggestedReorderQty: Math.ceil(dailyVelocity * 30),
+      });
+    }
+  }
+
+  forecast.sort((a, b) => a.daysRemaining - b.daysRemaining);
+  return successResponse(res, forecast);
 };
 
-// ─── Inventory Report ─────────────────────────────────────────────────────────
+// ─── DEAD STOCK ───────────────────────────────────────────────────────────────
+exports.getDeadStock = async (req, res) => {
+  const { days = 30 } = req.query;
+  const businessId = toId(req.params.businessId);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - Number(days));
 
-exports.getInventoryReport = async (req, res) => {
-  const products = await Product.find({ business: req.params.businessId, isActive: true, isArchived: false });
+  // Products with stock > 0
+  const products = await Product.find({
+    business: req.params.businessId,
+    isArchived: { $ne: true },
+    quantity: { $gt: 0 },
+  }).lean();
+
+  // Last sale date per product
+  const lastSales = await Transaction.aggregate([
+    { $match: { business: businessId, type: 'sale' } },
+    { $unwind: '$products' },
+    { $group: { _id: '$products.product', lastSoldAt: { $max: '$date' } } },
+  ]);
+  const lastSaleMap = {};
+  lastSales.forEach(s => { if (s._id) lastSaleMap[s._id.toString()] = s.lastSoldAt; });
+
+  const deadStock = [];
+  for (const p of products) {
+    const lastSoldAt = lastSaleMap[p._id.toString()];
+    const isDeadStock = !lastSoldAt || new Date(lastSoldAt) < cutoff;
+    if (isDeadStock) {
+      const staleDays = lastSoldAt
+        ? Math.floor((Date.now() - new Date(lastSoldAt)) / (1000 * 60 * 60 * 24))
+        : null;
+      deadStock.push({
+        _id: p._id,
+        name: p.name,
+        category: p.category,
+        quantity: p.quantity,
+        stockValue: p.quantity * (p.costPrice || p.sellingPrice),
+        lastSoldAt,
+        staleDays,
+        recommendation: !lastSoldAt ? 'Never sold — consider removing or discounting' :
+          staleDays > 90 ? 'Bundle with popular items' :
+          staleDays > 60 ? 'Apply 20% discount to move stock' :
+          'Monitor — slow moving product',
+      });
+    }
+  }
+
+  deadStock.sort((a, b) => (b.staleDays || 9999) - (a.staleDays || 9999));
+  return successResponse(res, deadStock);
+};
+
+// ─── INVENTORY REPORT ─────────────────────────────────────────────────────────
+exports.getReport = async (req, res) => {
+  const products = await Product.find({
+    business: req.params.businessId,
+    isArchived: { $ne: true },
+  }).lean();
+
   const totalProducts = products.length;
-  const totalStockValue = products.reduce((sum, p) => sum + p.quantity * p.costPrice, 0);
-  const totalRetailValue = products.reduce((sum, p) => sum + p.quantity * p.sellingPrice, 0);
-  const lowStock = products.filter(p => p.quantity <= p.lowStockThreshold);
-  const outOfStock = products.filter(p => p.quantity === 0);
+  const totalStockValue = products.reduce((a, p) => a + (p.quantity * (p.costPrice || 0)), 0);
+  const totalRetailValue = products.reduce((a, p) => a + (p.quantity * p.sellingPrice), 0);
+  const potentialProfit = totalRetailValue - totalStockValue;
+
+  const lowStockProducts = products.filter(p => p.quantity > 0 && p.quantity <= p.lowStockThreshold);
+  const outOfStockProducts = products.filter(p => p.quantity === 0);
 
   return successResponse(res, {
     totalProducts,
     totalStockValue,
     totalRetailValue,
-    potentialProfit: totalRetailValue - totalStockValue,
-    lowStockCount: lowStock.length,
-    outOfStockCount: outOfStock.length,
-    lowStockProducts: lowStock,
-    outOfStockProducts: outOfStock,
+    potentialProfit,
+    lowStockCount: lowStockProducts.length,
+    outOfStockCount: outOfStockProducts.length,
+    lowStockProducts: lowStockProducts.slice(0, 10),
+    outOfStockProducts: outOfStockProducts.slice(0, 10),
   });
 };

@@ -17,6 +17,7 @@ const businessRoutes = require('./routes/businessRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const productRoutes = require('./routes/productRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
 const posRoutes = require('./routes/posRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const {
@@ -70,6 +71,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/businesses', businessRoutes);
 app.use('/api/businesses/:businessId/transactions', transactionRoutes);
 app.use('/api/businesses/:businessId/products', productRoutes);
+app.use('/api/businesses/:businessId/inventory', inventoryRoutes);
 app.use('/api/businesses/:businessId/inventory', inventoryRoutes);
 app.use('/api/businesses/:businessId/sales', posRoutes);
 app.use('/api/businesses/:businessId/purchase-orders', purchaseOrderRoutes);
