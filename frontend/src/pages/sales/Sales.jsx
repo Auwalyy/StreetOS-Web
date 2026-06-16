@@ -9,6 +9,24 @@ import { Button, Card, Badge, EmptyState, Spinner } from '../../components/ui'
 
 const STATUS_COLORS = { paid: 'green', pending: 'red', partial: 'yellow' }
 
+function shareWhatsApp(sale, bizName) {
+  const items = sale.products?.map(p => `  - ${p.name} x${p.quantity} = \u20a6${p.total?.toLocaleString()}`).join('\n')
+  const msg = [
+    `\ud83e\udfe7 *RECEIPT from ${bizName}*`,
+    `Receipt: #${sale._id?.slice(-8).toUpperCase()}`,
+    `Date: ${format(new Date(sale.createdAt), 'dd MMM yyyy, HH:mm')}`,
+    ``,
+    items,
+    ``,
+    `*TOTAL: \u20a6${sale.total?.toLocaleString()}*`,
+    `Payment: ${sale.paymentMethod?.toUpperCase()}`,
+    `_Thank you! Powered by StreetOS AI_`,
+  ].filter(Boolean).join('\n')
+  const phone = sale.customer?.phone?.replace(/[^0-9]/g, '')
+  const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+  window.open(url, '_blank')
+}
+
 export default function Sales() {
   const { currentBusiness } = useAuthStore()
   const navigate = useNavigate()
@@ -107,8 +125,9 @@ export default function Sales() {
                       <td className="py-3 px-4 text-gray-600">₦{s.amountPaid?.toLocaleString()}</td>
                       <td className="py-3 px-4"><Badge color={STATUS_COLORS[s.paymentStatus]}>{s.paymentStatus}</Badge></td>
                       <td className="py-3 px-4">
-                        <div className="flex gap-1">
+                          <div className="flex gap-1">
                           <button onClick={() => navigate(`/invoice/${s._id}`)} className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">Receipt</button>
+                          <button onClick={() => shareWhatsApp(s, currentBusiness?.name)} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">📱 WA</button>
                           {s.paymentStatus !== 'void' && (
                             <button onClick={() => { if (confirm('Void this sale?')) voidSale(s._id) }} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Void</button>
                           )}

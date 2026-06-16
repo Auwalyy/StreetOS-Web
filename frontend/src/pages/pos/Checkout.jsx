@@ -224,6 +224,17 @@ export default function Checkout() {
                 <div>
                   <p className="font-medium text-gray-900 text-sm">{customer.name}</p>
                   <p className="text-xs text-gray-400">{customer.phone}</p>
+                  {customer.creditLimit > 0 && (
+                    <div className="mt-1">
+                      {customer.creditBlocked ? (
+                        <span className="text-xs font-bold text-red-600">🔒 Credit blocked — cash only</span>
+                      ) : customer.totalDebt + total > customer.creditLimit ? (
+                        <span className="text-xs font-bold text-red-600">⚠️ Over credit limit (₦{customer.creditLimit.toLocaleString()})</span>
+                      ) : (
+                        <span className="text-xs text-gray-500">Credit: ₦{customer.totalDebt?.toLocaleString()} / ₦{customer.creditLimit.toLocaleString()}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => setCustomer(null)} className="text-gray-400 hover:text-red-400 text-sm">✕</button>
               </div>

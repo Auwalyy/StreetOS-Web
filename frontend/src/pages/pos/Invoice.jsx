@@ -15,6 +15,33 @@ export default function Invoice() {
 
   const handlePrint = useReactToPrint({ contentRef: printRef })
 
+  const shareWhatsApp = (sale) => {
+    if (!sale) return
+    const items = sale.products?.map(p => `  - ${p.name} x${p.quantity} = \u20a6${p.total?.toLocaleString()}`).join('\n')
+    const msg = [
+      `\ud83e\udfe7 *RECEIPT from ${currentBusiness?.name}*`,
+      `Receipt No: #${sale._id?.slice(-8).toUpperCase()}`,
+      `Date: ${format(new Date(sale.createdAt), 'dd MMM yyyy, HH:mm')}`,
+      ``,
+      `*Items:*`,
+      items,
+      ``,
+      `Subtotal: \u20a6${sale.subtotal?.toLocaleString()}`,
+      sale.discount > 0 ? `Discount: -\u20a6${sale.discount?.toLocaleString()}` : null,
+      `*TOTAL: \u20a6${sale.total?.toLocaleString()}*`,
+      `Payment: ${sale.paymentMethod?.toUpperCase()} (${sale.paymentStatus})`,
+      ``,
+      `_Thank you for shopping at ${currentBusiness?.name}!_ \ud83d\ude4f`,
+      `_Powered by StreetOS AI_`,
+    ].filter(Boolean).join('\n')
+
+    const phone = sale.customer?.phone?.replace(/[^0-9]/g, '')
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`
+    window.open(url, '_blank')
+  }
+
   const { data: sale, isLoading } = useQuery({
     queryKey: ['sale', id],
     queryFn: () => salesApi.getSale(currentBusiness._id, id).then(r => r.data.data),
@@ -32,6 +59,7 @@ export default function Invoice() {
         <button onClick={() => navigate('/pos')} className="text-sm text-gray-500 hover:text-gray-700">← New Sale</button>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => navigate('/sales')}>View All Sales</Button>
+          <Button variant="success" onClick={() => shareWhatsApp(sale)}>📱 WhatsApp Receipt</Button>
           <Button onClick={handlePrint}>🖨️ Print Receipt</Button>
         </div>
       </div>
