@@ -19,9 +19,6 @@ const productRoutes = require('./routes/productRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const salesRoutes = require('./routes/salesRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
-const inventoryRoutes = require('./routes/inventoryRoutes');
-const posRoutes = require('./routes/posRoutes');
-const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const {
   customerRouter, debtRouter, analyticsRouter,
   resourceRouter, aiRouter, notifRouter,
@@ -38,7 +35,7 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'https://street-os-web.vercel.app',
   'http://localhost:5173',
-].filter(Boolean)
+].filter(Boolean);
 
 const app = express();
 const server = http.createServer(app);
@@ -54,42 +51,39 @@ io.on('connection', (socket) => {
 
 app.set('io', io);
 
-// Security
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
-// Rate Limiting
 const limiter = rateLimit({
   windowMs: (parseInt(process.env.RATE_LIMIT_WINDOW) || 15) * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 200,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api/', limiter);
 
-// Core Routes
-app.use('/api/auth', authRoutes);
+// ─── Business-scoped routes ───────────────────────────────────────────────────
 app.use('/api/businesses', businessRoutes);
 app.use('/api/businesses/:businessId/transactions', transactionRoutes);
 app.use('/api/businesses/:businessId/products', productRoutes);
 app.use('/api/businesses/:businessId/inventory', inventoryRoutes);
 app.use('/api/businesses/:businessId/sales', salesRoutes);
 app.use('/api/businesses/:businessId/purchase-orders', purchaseOrderRoutes);
-app.use('/api/businesses/:businessId/inventory', inventoryRoutes);
-app.use('/api/businesses/:businessId/sales', posRoutes);
-app.use('/api/businesses/:businessId/purchase-orders', purchaseOrderRoutes);
 app.use('/api/businesses/:businessId/customers', customerRouter);
 app.use('/api/businesses/:businessId/debts', debtRouter);
 app.use('/api/businesses/:businessId/analytics', analyticsRouter);
-app.use('/api/businesses/:businessId', resourceRouter);
 app.use('/api/businesses/:businessId/ai', aiRouter);
 app.use('/api/businesses/:businessId/loans', loanRouter);
 app.use('/api/businesses/:businessId/market', marketRouter);
 app.use('/api/businesses/:businessId/security', fraudRouter);
 app.use('/api/businesses/:businessId/verification', verifyRouter);
+app.use('/api/businesses/:businessId', resourceRouter);
 
-// Platform-wide Routes
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+
+// ─── Platform-wide routes ─────────────────────────────────────────────────────
 app.use('/api/notifications', notifRouter);
 app.use('/api/community', communityRouter);
 app.use('/api/groups', groupRouter);
